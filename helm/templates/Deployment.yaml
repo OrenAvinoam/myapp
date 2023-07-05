@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.app.name }}
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    app: {{ .Values.app.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.app.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.app.name }}
+    spec:
+      volumes:
+        - name: azure-disk-1
+          persistentVolumeClaim:
+            claimName: azure-pvc-1
+        - name: client-packages
+          configMap:
+            name: {{ .Values.app.name }}-client-configmap
+        - name: server-packages
+          configMap:
+            name: {{ .Values.app.name }}-server-configmap
+      containers:
+        - name: front
+          image: "docker.io/orenavinoam11/oc-hafifa:front"
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: {{ .Values.front.svc.port }}
+              protocol: TCP
+          volumeMounts:
+          - name: client-packages
+            mountPath: /app/package.json
+            subPath: package.json
+        - name: back
+          image: "docker.io/orenavinoam11/oc-hafifa:back"
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: 2Gi
+              cpu: 1000m
+            limits:
+              memory: 2Gi
+              cpu: 1000m
+          env:
+            - name: MONGO_SVC
+              value: {{ .Values.mongodb.name }}-svc.{{.Values.app.namespace }}.svc.cluster.local
+          ports:
+            - name: http
+              containerPort: {{ .Values.back.svc.port }}
+              protocol: TCP
+          volumeMounts:
+          - name: server-packages
+            mountPath: /back/package.json
+            subPath: package.json
+        - name: mongodb
+          image: "mongo:latest"
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+          volumeMounts:
+            - name: azure-disk-1
+              mountPath: /data/db
+              readOnly: false
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: username
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: password
+          ports:
+            - name: http
+              containerPort: 27017
+              protocol: TCP

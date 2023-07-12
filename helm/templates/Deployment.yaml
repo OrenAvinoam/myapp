@@ -50,6 +50,16 @@ spec:
           env:
             - name: MONGO_SVC
               value: {{ .Values.mongodb.name }}-svc.{{.Values.app.namespace }}.svc.cluster.local
+            - name: MONGO_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: username
+            - name: MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: password
           ports:
             - name: http
               containerPort: {{ .Values.back.svc.port }}
